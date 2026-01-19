@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compound Interest Calculator</title>
+  <style>
+    :root { --bg:#ffffff; --ink:#111; --muted:#666; --line:#e9e9e9; --shadow:0 10px 30px rgba(0,0,0,.08); }
+    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#f6f3ee; color:var(--ink); }
+    .wrap{ max-width:820px; margin:24px auto; padding:16px; }
+    .card{ background:var(--bg); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px; }
+    h1{ font-size:20px; margin:0 0 6px; letter-spacing:.3px; text-transform:uppercase; }
+    p{ margin:0 0 14px; color:var(--muted); }
+    .grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+    label{ font-size:12px; color:var(--muted); display:block; margin:0 0 6px; }
+    input{ width:100%; box-sizing:border-box; padding:12px 12px; border:1px solid var(--line); border-radius:12px; font-size:16px; }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; align-items:center; }
+    button{ appearance:none; border:0; border-radius:12px; padding:12px 14px; font-weight:700; cursor:pointer; box-shadow:var(--shadow); }
+    .btn{ background:#b58a2b; color:#fff; }
+    .btn2{ background:#fff; border:1px solid var(--line); }
+    .results{ margin-top:14px; border-top:1px solid var(--line); padding-top:14px; display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; }
+    .kpi{ border:1px solid var(--line); border-radius:14px; padding:12px; }
+    .kpi .t{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+    .kpi .v{ font-size:18px; font-weight:800; }
+    .fine{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.35; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } .results{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Compound Interest Calculator</h1>
+      <p>Automatically calculated at <b>10% per year</b> (compounded monthly).</p>
+
+      <div class="grid">
+        <div>
+          <label for="lump">Lump sum (£)</label>
+          <input id="lump" type="number" min="0" step="0.01" value="0" />
+        </div>
+        <div>
+          <label for="monthly">Monthly contribution (£/month)</label>
+          <input id="monthly" type="number" min="0" step="0.01" value="100" />
+        </div>
+        <div>
+          <label for="years">Time (years)</label>
+          <input id="years" type="number" min="0" step="1" value="18" />
+        </div>
+        <div>
+          <label>Rate</label>
+          <input type="text" value="10% per year (fixed)" disabled />
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="calc">Calculate</button>
+        <button class="btn2" id="reset">Reset</button>
+      </div>
+
+      <div class="results" id="results" aria-live="polite">
+        <div class="kpi">
+          <div class="t">Final value</div>
+          <div class="v" id="final">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Total contributed</div>
+          <div class="v" id="contrib">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Growth (interest)</div>
+          <div class="v" id="growth">—</div>
+        </div>
+      </div>
+
+      <div class="fine">
+        Assumption: 10% nominal annual rate compounded monthly. Results are estimates and do not include fees, inflation, or tax.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const RATE_ANNUAL = 0.10;
+
+    function fmtGBP(n){
+      return new Intl.NumberFormat('en-GB', { style:'currency', currency:'GBP', maximumFractionDigits:0 }).format(n);
+    }
+
+    function calculate(){
+      const lump = Math.max(0, Number(document.getElementById('lump').value || 0));
+      const monthly = Math.max(0, Number(document.getElementById('monthly').value || 0));
+      const years = Math.max(0, Number(document.getElementById('years').value || 0));
+
+      const months = Math.round(years * 12);
+      const r = RATE_ANNUAL / 12;
+
+      // Future value:
+      // FV = lump*(1+r)^n + monthly * [((1+r)^n - 1)/r]
+      const pow = Math.pow(1 + r, months);
+      const fvLump = lump * pow;
+      const fvMonthly = (r === 0) ? (monthly * months) : monthly * ((pow - 1) / r);
+      const finalValue = fvLump + fvMonthly;
+
+      const totalContrib = lump + (monthly * months);
+      const growth = finalValue - totalContrib;
+
+      document.getElementById('final').textContent = fmtGBP(finalValue);
+      document.getElementById('contrib').textContent = fmtGBP(totalContrib);
+      document.getElementById('growth').textContent = fmtGBP(growth);
+    }
+
+    document.getElementById('calc').addEventListener('click', calculate);
+    document.getElementById('reset').addEventListener('click', () => {
+      document.getElementById('lump').value = 0;
+      document.getElementById('monthly').value = 100;
+      document.getElementById('years').value = 18;
+      document.getElementById('final').textContent = '—';
+      document.getElementById('contrib').textContent = '—';
+      document.getElementById('growth').textContent = '—';
+    });
+
+    // auto-calc once on load
+    calculate();
+  </script>
+</body>
+</html>
