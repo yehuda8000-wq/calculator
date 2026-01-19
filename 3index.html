@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chasuna Savings Calculator (to Age 19)</title>
+  <style>
+    :root{
+      --bg:#f6f3ee;
+      --card:#ffffff;
+      --ink:#111;
+      --muted:#666;
+      --line:#e9e9e9;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+      --accent:#b58a2b;
+    }
+    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+    .wrap{ max-width:980px; margin:22px auto; padding:16px; }
+    .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px; }
+    h1{ margin:0 0 6px; font-size:20px; letter-spacing:.3px; text-transform:uppercase; }
+    .sub{ margin:0 0 14px; color:var(--muted); line-height:1.35; }
+
+    .toolbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:14px 0 10px; }
+    .btn{ appearance:none; border:0; border-radius:12px; padding:10px 12px; font-weight:800; cursor:pointer; box-shadow:var(--shadow); }
+    .btn.primary{ background:var(--accent); color:#fff; }
+    .btn.ghost{ background:#fff; border:1px solid var(--line); color:var(--ink); }
+    .btn.download{ background:#111; color:#fff; }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; }
+
+    .kid{ border:1px solid var(--line); border-radius:14px; padding:14px; margin-top:12px; background:#fff; }
+    .kidhead{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .kidtitle{ font-weight:900; }
+    .small{ font-size:12px; color:var(--muted); }
+
+    .grid{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; margin-top:10px; }
+    label{ font-size:12px; color:var(--muted); display:block; margin:0 0 6px; }
+    input{ width:100%; box-sizing:border-box; padding:11px 12px; border:1px solid var(--line); border-radius:12px; font-size:15px; }
+    input[readonly]{ background:#fafafa; }
+
+    .results{ margin-top:12px; border-top:1px solid var(--line); padding-top:12px; display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+    .kpi{ border:1px solid var(--line); border-radius:12px; padding:10px; }
+    .kpi .t{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+    .kpi .v{ font-size:16px; font-weight:900; }
+
+    .totals{ margin-top:14px; border-top:1px solid var(--line); padding-top:14px; display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; }
+    .note{ margin-top:12px; font-size:12px; color:var(--muted); line-height:1.4; }
+
+    @media (max-width:900px){
+      .grid{ grid-template-columns:1fr 1fr; }
+      .results{ grid-template-columns:1fr 1fr; }
+      .totals{ grid-template-columns:1fr; }
+    }
+    @media (max-width:520px){
+      .grid{ grid-template-columns:1fr; }
+      .results{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Chasuna Savings Calculator</h1>
+      <p class="sub">
+        Add up to <b>5 children</b>. The calculator automatically runs projections until each child reaches <b>age 19</b>,
+        using a fixed <b>10% per year</b> rate (compounded monthly).
+      </p>
+
+      <div class="toolbar">
+        <button class="btn primary" id="addKid">+ Add child</button>
+        <button class="btn ghost" id="calcAll">Calculate</button>
+        <button class="btn download" id="downloadCSV">Download results</button>
+        <button class="btn ghost" id="resetAll">Reset</button>
+        <span class="small" id="kidCount">0 / 5 children added</span>
+      </div>
+
+      <div id="kids"></div>
+
+      <div class="totals" id="totals" style="display:none;">
+        <div class="kpi">
+          <div class="t">Total final value (all children)</div>
+          <div class="v" id="tFinal">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Total contributed (all children)</div>
+          <div class="v" id="tContrib">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Total growth (all children)</div>
+          <div class="v" id="tGrowth">—</div>
+        </div>
+      </div>
+
+      <div class="note" id="disclosure">
+        <b>Disclosure:</b> This calculator assumes saving continues <b>until the child turns 19</b>.
+        It uses a fixed <b>10% annual rate</b> compounded monthly. Results are estimates only and do not account for fees,
+        inflation, taxes, or real-world market changes. If a child is already 19 or older, the “years remaining” will be 0.
+      </div>
+    </div>
+  </div>
+
+  <template id="kidTemplate">
+    <div class="kid">
+      <div class="kidhead">
+        <div>
+          <div class="kidtitle">Child</div>
+          <div class="small">Projection runs automatically to age 19</div>
+        </div>
+        <button class="btn ghost removeBtn" type="button">Remove</button>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Child name</label>
+          <input class="name" type="text" placeholder="e.g., Sarah" />
+        </div>
+        <div>
+          <label>Child age (years)</label>
+          <input class="age" type="number" min="0" max="100" step="1" value="5" />
+        </div>
+        <div>
+          <label>Initial amount (£)</label>
+          <input class="lump" type="number" min="0" step="0.01" value="0" />
+        </div>
+        <div>
+          <label>Monthly amount (£/month)</label>
+          <input class="monthly" type="number" min="0" step="0.01" value="100" />
+        </div>
+
+        <div>
+          <label>Years remaining (to 19)</label>
+          <input class="years" type="text" readonly value="—" />
+        </div>
+        <div>
+          <label>Rate</label>
+          <input type="text" readonly value="10% per year (fixed)" />
+        </div>
+        <div>
+          <label>Months remaining</label>
+          <input class="months" type="text" readonly value="—" />
+        </div>
+        <div>
+          <label>Status</label>
+          <input class="status" type="text" readonly value="—" />
+        </div>
+      </div>
+
+      <div class="results">
+        <div class="kpi">
+          <div class="t">Final value (at 19)</div>
+          <div class="v final">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Total contributed</div>
+          <div class="v contrib">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Growth (interest)</div>
+          <div class="v growth">—</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Effective time</div>
+          <div class="v efftime">—</div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // Fixed assumptions
+    const TARGET_AGE = 19;
+    const RATE_ANNUAL = 0.10;     // 10% per year
+    const MAX_KIDS = 5;
+
+    const kidsEl = document.getElementById("kids");
+    const kidTpl = document.getElementById("kidTemplate");
+    const addKidBtn = document.getElementById("addKid");
+    const calcAllBtn = document.getElementById("calcAll");
+    const downloadBtn = document.getElementById("downloadCSV");
+    const resetAllBtn = document.getElementById("resetAll");
+    const kidCountEl = document.getElementById("kidCount");
+
+    const totalsBox = document.getElementById("totals");
+    const tFinalEl = document.getElementById("tFinal");
+    const tContribEl = document.getElementById("tContrib");
+    const tGrowthEl = document.getElementById("tGrowth");
+
+    function fmtGBP(n){
+      return new Intl.NumberFormat('en-GB', { style:'currency', currency:'GBP', maximumFractionDigits:0 }).format(n);
+    }
+
+    function computeMonthsTo19(ageYears){
+      const yearsLeft = Math.max(0, TARGET_AGE - ageYears);
+      const months = Math.max(0, Math.round(yearsLeft * 12));
+      return { yearsLeft, months };
+    }
+
+    function futureValue(lump, monthly, months){
+      const r = RATE_ANNUAL / 12;         // monthly rate
+      const pow = Math.pow(1 + r, months);
+
+      // FV = lump*(1+r)^n + monthly * [((1+r)^n - 1)/r]
+      const fvLump = lump * pow;
+      const fvMonthly = (r === 0) ? (monthly * months) : monthly * ((pow - 1) / r);
+      return fvLump + fvMonthly;
+    }
+
+    function kidNodes(){
+      return Array.from(kidsEl.querySelectorAll(".kid"));
+    }
+
+    function updateKidCount(){
+      const c = kidNodes().length;
+      kidCountEl.textContent = `${c} / ${MAX_KIDS} children added`;
+      addKidBtn.disabled = c >= MAX_KIDS;
+      totalsBox.style.display = c ? "grid" : "none";
+    }
+
+    function wireKid(kid){
+      const name = kid.querySelector(".name");
+      const age = kid.querySelector(".age");
+      const lump = kid.querySelector(".lump");
+      const monthly = kid.querySelector(".monthly");
+
+      const years = kid.querySelector(".years");
+      const months = kid.querySelector(".months");
+      const status = kid.querySelector(".status");
+
+      const finalEl = kid.querySelector(".final");
+      const contribEl = kid.querySelector(".contrib");
+      const growthEl = kid.querySelector(".growth");
+      const efftimeEl = kid.querySelector(".efftime");
+
+      const removeBtn = kid.querySelector(".removeBtn");
+
+      function recalcOne(){
+        const childName = (name.value || "").trim() || "Child";
+        kid.querySelector(".kidtitle").textContent = childName;
+
+        const ageValRaw = Number(age.value);
+        const ageVal = isFinite(ageValRaw) ? ageValRaw : 0;
+
+        const lumpVal = Math.max(0, Number(lump.value || 0));
+        const monthlyVal = Math.max(0, Number(monthly.value || 0));
+
+        const { yearsLeft, months: mLeft } = computeMonthsTo19(ageVal);
+
+        years.value = yearsLeft.toFixed(2).replace(/\.00$/,"") + " years";
+        months.value = mLeft + " months";
+
+        if (ageVal >= TARGET_AGE){
+          status.value = "Already 19+ (no remaining time)";
+        } else if (ageVal < 0){
+          status.value = "Age must be 0+";
+        } else {
+          status.value = "OK";
+        }
+
+        const fv = futureValue(lumpVal, monthlyVal, mLeft);
+        const totalContrib = lumpVal + (monthlyVal * mLeft);
+        const growth = fv - totalContrib;
+
+        finalEl.textContent = fmtGBP(fv);
+        contribEl.textContent = fmtGBP(totalContrib);
+        growthEl.textContent = fmtGBP(growth);
+
+        const y = Math.floor(mLeft / 12);
+        const mo = mLeft % 12;
+        efftimeEl.textContent = `${y}y ${mo}m`;
+
+        return { fv, totalContrib, growth };
+      }
+
+      // Auto-calc when typing
+      [name, age, lump, monthly].forEach(inp => {
+        inp.addEventListener("input", () => {
+          recalcOne();
+          recalcTotals();
+        });
+      });
+
+      removeBtn.addEventListener("click", () => {
+        kid.remove();
+        updateKidCount();
+        recalcTotals();
+      });
+
+      // initial
+      recalcOne();
+    }
+
+    function addKid(defaults = null){
+      if (kidNodes().length >= MAX_KIDS) return;
+
+      const frag = kidTpl.content.cloneNode(true);
+      const kid = frag.querySelector(".kid");
+
+      kidsEl.appendChild(kid);
+      wireKid(kid);
+
+      if (defaults){
+        kid.querySelector(".name").value = defaults.name ?? "";
+        kid.querySelector(".age").value = defaults.age ?? 5;
+        kid.querySelector(".lump").value = defaults.lump ?? 0;
+        kid.querySelector(".monthly").value = defaults.monthly ?? 100;
+        kid.querySelector(".name").dispatchEvent(new Event("input"));
+      }
+
+      updateKidCount();
+      recalcTotals();
+    }
+
+    function parseGBP(s){
+      return Number(String(s).replace(/[^0-9.-]/g,"")) || 0;
+    }
+
+    function recalcTotals(){
+      const kids = kidNodes();
+      if (!kids.length){
+        totalsBox.style.display = "none";
+        return;
+      }
+
+      let sumFV = 0, sumContrib = 0, sumGrowth = 0;
+
+      kids.forEach(kid => {
+        sumFV += parseGBP(kid.querySelector(".final").textContent);
+        sumContrib += parseGBP(kid.querySelector(".contrib").textContent);
+        sumGrowth += parseGBP(kid.querySelector(".growth").textContent);
+      });
+
+      totalsBox.style.display = "grid";
+      tFinalEl.textContent = fmtGBP(sumFV);
+      tContribEl.textContent = fmtGBP(sumContrib);
+      tGrowthEl.textContent = fmtGBP(sumGrowth);
+    }
+
+    function escapeCSV(v){
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    }
+
+    function downloadResultsCSV(){
+      // Ensure latest numbers
+      recalcTotals();
+
+      const kids = kidNodes();
+      if (!kids.length) return;
+
+      const rows = [];
+      rows.push([
+        "Child name",
+        "Child age",
+        "Years remaining to 19",
+        "Months remaining",
+        "Initial amount (GBP)",
+        "Monthly amount (GBP)",
+        "Final value at 19 (GBP)",
+        "Total contributed (GBP)",
+        "Growth/interest (GBP)",
+        "Assumption"
+      ]);
+
+      kids.forEach(kid => {
+        const name = (kid.querySelector(".name").value || "").trim() || "Child";
+        const age = kid.querySelector(".age").value || "";
+        const years = kid.querySelector(".years").value || "";
+        const months = kid.querySelector(".months").value || "";
+        const lump = kid.querySelector(".lump").value || "0";
+        const monthly = kid.querySelector(".monthly").value || "0";
+
+        const finalV = parseGBP(kid.querySelector(".final").textContent);
+        const contribV = parseGBP(kid.querySelector(".contrib").textContent);
+        const growthV = parseGBP(kid.querySelector(".growth").textContent);
+
+        rows.push([
+          name,
+          age,
+          years,
+          months,
+          lump,
+          monthly,
+          finalV.toFixed(0),
+          contribV.toFixed(0),
+          growthV.toFixed(0),
+          "Projection to age 19 at 10% per year (compounded monthly)"
+        ]);
+      });
+
+      rows.push([]);
+      rows.push([
+        "TOTALS",
+        "",
+        "",
+        "",
+        "",
+        "",
+        tFinalEl.textContent,
+        tContribEl.textContent,
+        tGrowthEl.textContent,
+        ""
+      ]);
+
+      const csv = rows.map(r => r.map(escapeCSV).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0,10);
+      a.href = url;
+      a.download = `chasuna-calculator-results-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    }
+
+    addKidBtn.addEventListener("click", () => addKid());
+    calcAllBtn.addEventListener("click", recalcTotals);
+    downloadBtn.addEventListener("click", downloadResultsCSV);
+
+    resetAllBtn.addEventListener("click", () => {
+      kidsEl.innerHTML = "";
+      totalsBox.style.display = "none";
+      updateKidCount();
+      addKid({ name:"", age:5, lump:0, monthly:100 });
+    });
+
+    // Start with 1 child by default
+    addKid({ name:"", age:5, lump:0, monthly:100 });
+  </script>
+</body>
+</html>
